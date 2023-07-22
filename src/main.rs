@@ -67,10 +67,15 @@ fn parse_to_json(i: Input) ->Result<Json, Error>{
     let mut line = JsonLine::new();
     let t =i.file.chars();
     let mut str_holder = String::new();
-    let mut ptr = ""; // This is to track what we are parsing now
+    let mut vec_holder = Vec::new(); // a temporary data structures for holding data
+    let mut on_vec = false; // a variable set when we are working on an array. It helps to avoid checking the length of the array
+    let mut _ptr = ""; // This is to track what we are parsing now
 
     let mut it = i.file.chars().peekable();
     while let Some(&c) = it.peek() { 
+        // if c == ' ' || c == '\n' {
+        //     continue;
+        // }
         match c {
             '0' ..='9' | '.' | '-' => {
                 // This should just be value -right?
@@ -78,7 +83,7 @@ fn parse_to_json(i: Input) ->Result<Json, Error>{
                     str_holder.push(it.next().unwrap());
                 } 
                 let k = line.clone();
-                if k.key.is_none() { return Err(Error::InvalidCharacter); } //Error parsing Some parsing error
+                if k.key.is_none() { return Err(Error::InvalidKey(str_holder)); } //Error parsing Some parsing error
                 
                 // if the str_holder has . then we parse Float, otherwise we parse Int -s.parse::<f32>().unwrap();
                 if str_holder.contains('.') {
@@ -108,11 +113,16 @@ fn parse_to_json(i: Input) ->Result<Json, Error>{
                 }
                 stack.push("\"".to_string());
             },
+            '[' => {
+                on_vec = true;
+                stack.push("[".to_string());
+                //line.set_value(JsonValue::ArrayValue(vec![]));
+            },
             ':' => {
                 // need to parse what we have so far as the key
             },
             ',' => {
-                
+              // println!("Comma {:?}", json); 
             },
             f if f.is_alphanumeric() => {
                 // If the stack is empty it means this is the first char we are encountering
@@ -145,11 +155,15 @@ fn parse_to_json(i: Input) ->Result<Json, Error>{
                         }
                         line.set_key(str_holder);
                         str_holder = String::new();
-
                         //maybe I should continue here - still undecided
                     }
                     else if it.peek() == Some(&','){
-                        line.set_value(JsonValue::StringValue(str_holder));
+                        //prcntln!("{}", str_holder);
+                        if on_vec {
+                            vec_holder.push(JsonValue::StringValue(str_holder));
+                        } else {
+                            line.set_value(JsonValue::StringValue(str_holder));
+                        }
                         str_holder = String::new();
                     } 
                     else if it.peek() == Some(&'}'){
@@ -157,8 +171,22 @@ fn parse_to_json(i: Input) ->Result<Json, Error>{
                         str_holder = String::new();
                         continue;
                     } 
-                    else {
-                        println!("{:?}", it.peek());
+                    else if it.peek() == Some(&']'){
+                        if stack.peek() == Some(&'['.to_string()) { 
+                            stack.pop();
+                            vec_holder.push(JsonValue::StringValue(str_holder.clone()));
+                            line.set_value(JsonValue::ArrayValue(vec_holder));
+                            
+                            on_vec = false; // We are through dealing with a vector
+                            vec_holder = Vec::new(); // Reset the vec_holder variable since the variable has been used
+                            str_holder = String::new();  // Reset the str_holder variable since the variable has been used
+                        }
+                        else {
+                            return Err(Error::InvalidState);
+                        }
+                    }
+                    else { 
+                        //println!("{:?}", it.peek());
                         return Err(Error::InvalidCharacter); 
                     }
                     
@@ -171,7 +199,7 @@ fn parse_to_json(i: Input) ->Result<Json, Error>{
                        return Err(Error::IncompleteElement)
                     }
                     else if it.peek() == Some(&','){
-
+                         
                         let mut val = false;
                         if str_holder.to_lowercase() == "true" {
                             val = true;
@@ -210,24 +238,20 @@ fn parse_to_json(i: Input) ->Result<Json, Error>{
     
 }
 
-#[derive(Clone, Debug)]
-enum JsonPrimtives{
-    IntValue(u32),
-    FloatValue(f32),
-    StringValue(String)
-}
 
 #[derive(Clone, Debug)]
 enum JsonValue{
-    ArrayValue(Vec<JsonPrimtives>),
+    Json,
+    ArrayValue(Vec<JsonValue>),
     StringValue(String),
     FloatValue(f32),
     IntValue(u32),
     BoolValue(bool),
 }
 
+#[derive(Clone, Debug)]
 struct JsonStack {
-    data: Vec<String>
+   data: Vec<String>
 }
 
 
@@ -292,18 +316,30 @@ impl  Json {
     }
 }
 
-fn main() {
-    println!("Hello, world!");
+fn main() { 
+
+    // let input = r#"
+    //   {
+    //     "Ma" : "THis is wrong",
+    //     "int": 4,
+    //     "floatVal": 5.4,
+    //     "8MKJK": .65,
+    //     "boolean" : true,
+    //     "anarray": "whatever"
+    //   }
+    // "#;
 
     let input = r#"
-      {
-        "int": 4,
-        "float": 5.4,
-        "float": .65,
-        "boolean" : true,
-        "anarray": "whatever"
-      }
-    "#;
+    {
+      "sa": {"a": 2, "c": 3 },
+      "Ma" : ["apple", "banana"],
+      "int": 4,
+      "floatVal": 5.4,
+      "MKJK": .65,
+      "boolean" : true,
+      "anarray": "whatever"
+    }
+  "#;
 
     let i = Input {
         file : input.to_string(),

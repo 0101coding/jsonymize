@@ -13,7 +13,7 @@ pub enum Error {
     InvalidColon,
     InvalidState,
     IncompleteElement,
-    InvalidKey,
+    InvalidKey(String),
     NoStartCurlyBrace,
     DuplicateKey(String)
 }
@@ -39,7 +39,7 @@ impl fmt::Display for Error {
             Error::InvalidColon => f.write_str("invalid colon"),
             Error::InvalidState => f.write_str("invalid state"),
             Error::IncompleteElement => f.write_str("incomplete element"),
-            Error::InvalidKey => f.write_str("Invalid Key"),
+            Error::InvalidKey(key) => f.write_fmt(format_args!("Invalid Key starting with `{}`", key)), 
             Error::NoStartCurlyBrace => f.write_str("Missing the start Curly Brace"),
             Error::DuplicateKey(key) => f.write_fmt(format_args!("Duplicate Key `{}`", key)), 
         }
